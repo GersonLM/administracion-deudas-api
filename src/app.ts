@@ -6,7 +6,7 @@ import { manejadorErrores, manejadorNotFound } from './middlewares/error';
 
 export const app = express();
 
-app.use(cors({ origin: env.corsOrigin }));
+app.use(cors({ origin: env.corsOrigins }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
