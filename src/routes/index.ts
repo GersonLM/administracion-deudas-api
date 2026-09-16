@@ -6,6 +6,7 @@ import { resumenRouter } from './resumen.routes';
 import { ciclosRouter } from './ciclos.routes';
 import { semanasRouter, gastosSemanaRouter } from './semanas.routes';
 import { ahorroRouter } from './ahorro.routes';
+import { camioncitoRouter } from './camioncito.routes';
 
 export const apiRouter = Router();
 
@@ -17,3 +18,4 @@ apiRouter.use('/ciclos', ciclosRouter);
 apiRouter.use('/semanas', semanasRouter);
 apiRouter.use('/gastos-semana', gastosSemanaRouter);
 apiRouter.use('/ahorro', ahorroRouter);
+apiRouter.use('/camioncito', camioncitoRouter);

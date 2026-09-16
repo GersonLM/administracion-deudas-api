@@ -108,3 +108,33 @@ export interface ResumenAhorro {
   saldo: number;
   movimientos: MovimientoAhorroCalculado[];
 }
+
+export type TipoMovimientoCamioncito = 'ingreso' | 'egreso';
+
+export interface CategoriaCamioncitoCalculada {
+  id: string;
+  tipo: TipoMovimientoCamioncito;
+  nombre: string;
+}
+
+export interface MovimientoCamioncitoCalculado {
+  id: string;
+  tipo: TipoMovimientoCamioncito;
+  categoriaId: string;
+  categoriaNombre: string;
+  monto: number;
+  descripcion?: string;
+  fecha: string;
+}
+
+export interface ResumenCamioncito {
+  totalIngresos: number;
+  totalEgresos: number;
+  balance: number;
+  cantidad: number;
+}
+
+export interface ListaMovimientosCamioncito {
+  movimientos: MovimientoCamioncitoCalculado[];
+  resumen: ResumenCamioncito;
+}

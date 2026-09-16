@@ -13,3 +13,15 @@ export function validarCuerpo(schema: ZodSchema) {
     next();
   };
 }
+
+export function validarQuery(schema: ZodSchema) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const resultado = schema.safeParse(req.query);
+    if (!resultado.success) {
+      next(new AppError(400, 'Parametros invalidos', resultado.error.flatten()));
+      return;
+    }
+    (req as Request & { queryValidada: unknown }).queryValidada = resultado.data;
+    next();
+  };
+}
