@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import { Deuda } from '../models/deuda.model';
 import { Abono } from '../models/abono.model';
-import { obtenerDeudasCalculadas, obtenerDeudaCalculadaPorId } from '../services/deudas.service';
+import {
+  obtenerDeudasCalculadas,
+  obtenerDeudaCalculadaPorId,
+  obtenerProyeccionPropia,
+  actualizarDeuda as actualizarDeudaServicio,
+} from '../services/deudas.service';
 import { AppError } from '../utils/AppError';
 
 export async function listarDeudas(_req: Request, res: Response) {
@@ -11,7 +16,8 @@ export async function listarDeudas(_req: Request, res: Response) {
 
 export async function obtenerDeuda(req: Request, res: Response) {
   const { deuda, calculada, abonos } = await obtenerDeudaCalculadaPorId(req.params.id);
-  res.json({ ...calculada, _id: deuda._id, abonos });
+  const proyeccionPropia = await obtenerProyeccionPropia(req.params.id, calculada);
+  res.json({ ...calculada, _id: deuda._id, abonos, proyeccionPropia });
 }
 
 export async function crearDeuda(req: Request, res: Response) {
@@ -20,8 +26,7 @@ export async function crearDeuda(req: Request, res: Response) {
 }
 
 export async function actualizarDeuda(req: Request, res: Response) {
-  const deuda = await Deuda.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-  if (!deuda) throw new AppError(404, 'Deuda no encontrada');
+  const deuda = await actualizarDeudaServicio(req.params.id, req.body);
   res.json(deuda);
 }
 

@@ -32,6 +32,16 @@ export async function obtenerCicloActivo(_req: Request, res: Response) {
   res.json(await obtenerCicloCalculado(ciclo));
 }
 
+export async function actualizarCiclo(req: Request, res: Response) {
+  const ciclo = await CicloMensual.findById(req.params.id);
+  if (!ciclo) throw new AppError(404, 'Ciclo no encontrado');
+  if (ciclo.estado === 'cerrado') throw new AppError(400, 'Este ciclo ya esta cerrado, no se puede editar.');
+
+  ciclo.montoIngresado = req.body.montoIngresado;
+  await ciclo.save();
+  res.json(await obtenerCicloCalculado(ciclo));
+}
+
 export async function agregarGastoFijo(req: Request, res: Response) {
   const ciclo = await CicloMensual.findById(req.params.id);
   if (!ciclo) throw new AppError(404, 'Ciclo no encontrado');

@@ -11,6 +11,10 @@ export const crearCicloSchema = z
     path: ['fechaFin'],
   });
 
+export const actualizarCicloSchema = z.object({
+  montoIngresado: z.number().positive('El monto debe ser mayor a 0'),
+});
+
 export const gastoFijoSchema = z.object({
   descripcion: z.string().trim().min(1, 'La descripcion es requerida'),
   monto: z.number().positive('El monto debe ser mayor a 0'),

@@ -8,11 +8,17 @@ export interface Interes {
   valor: number;
 }
 
+export interface TramoInteres extends Interes {
+  desde: string;
+  hasta: string;
+}
+
 export interface DeudaCalculada {
   id: string;
   acreedor: string;
   montoCapital: number;
   interes: Interes;
+  historialInteres: TramoInteres[];
   fechaInicio: string;
   prioridad: number;
   estado: EstadoDeuda;
@@ -25,6 +31,14 @@ export interface DeudaCalculada {
   deudaActual: number;
   progreso: number;
   interesDelMesActual: number;
+}
+
+export interface CostoTotal {
+  capital: number;
+  interesPagado: number;
+  interesProyectado: number | null;
+  interesTotal: number | null;
+  total: number | null;
 }
 
 export interface ResumenGlobal {
@@ -40,6 +54,15 @@ export interface ResumenGlobal {
   cuotaMensualObjetivo: number;
   abonadoMesActual: number;
   proyeccion: Proyeccion;
+  costoActivas: CostoTotal;
+  costoHistorico: CostoTotal | null;
+}
+
+export interface ProyeccionPorDeuda {
+  deudaId: string;
+  mesesHastaSaldar: number | null;
+  fechaEstimada: string | null;
+  interesFuturo: number;
 }
 
 export interface Proyeccion {
@@ -49,6 +72,15 @@ export interface Proyeccion {
   totalAPagar: number;
   cuotaInsuficiente: boolean;
   minimoMensualNecesario: number;
+  porDeuda: ProyeccionPorDeuda[];
+}
+
+export interface ProyeccionDeUnaDeuda {
+  cuotaInsuficiente: boolean;
+  mesesHastaSaldar: number | null;
+  fechaEstimada: string | null;
+  interesFuturo: number;
+  interesTotalEstimado: number;
 }
 
 export interface GastoFijoCalculado {

@@ -4,11 +4,33 @@ import { obtenerConfiguracion } from '../models/configuracion.model';
 import { obtenerDeudasCalculadas } from '../services/deudas.service';
 import { calcularProyeccion } from '../services/proyeccion.service';
 import { redondear } from '../services/calculos.service';
-import { ResumenGlobal } from '../types';
+import { CostoTotal, DeudaCalculada, Proyeccion, ResumenGlobal } from '../types';
+
+/**
+ * Costo de vida completo (capital + todos los intereses, pagados y por
+ * pagar) de un conjunto de deudas. `proyeccion` viene de la MISMA
+ * simulacion de cartera (por eso se le pasa desde afuera): las deudas ya
+ * pagadas no aportan interes futuro (quedaron fuera de la simulacion), asi
+ * que reusarla para el conjunto "todas" es correcto sin volver a simular.
+ */
+function calcularCostoTotal(deudas: DeudaCalculada[], proyeccion: Proyeccion): CostoTotal {
+  const capital = redondear(deudas.reduce((s, d) => s + d.montoCapital, 0));
+  const interesPagado = redondear(deudas.reduce((s, d) => s + d.interesPagado, 0));
+  if (proyeccion.cuotaInsuficiente) {
+    return { capital, interesPagado, interesProyectado: null, interesTotal: null, total: null };
+  }
+  const interesProyectado = proyeccion.totalInteresProyectado;
+  const interesTotal = redondear(interesPagado + interesProyectado);
+  return { capital, interesPagado, interesProyectado, interesTotal, total: redondear(capital + interesTotal) };
+}
 
 export async function obtenerResumen(_req: Request, res: Response) {
   const [deudas, config] = await Promise.all([obtenerDeudasCalculadas(), obtenerConfiguracion()]);
   const activas = deudas.filter((d) => d.estado === 'activa');
+  const proyeccion = calcularProyeccion(activas, config.cuotaMensualObjetivo);
+  const costoActivas = calcularCostoTotal(activas, proyeccion);
+  const hayPagadas = deudas.some((d) => d.estado === 'pagada');
+  const costoHistorico = hayPagadas ? calcularCostoTotal(deudas, proyeccion) : null;
 
   const inicioMes = new Date();
   inicioMes.setDate(1);
@@ -34,7 +56,9 @@ export async function obtenerResumen(_req: Request, res: Response) {
     cantidadDeudasActivas: activas.length,
     cuotaMensualObjetivo: config.cuotaMensualObjetivo,
     abonadoMesActual,
-    proyeccion: calcularProyeccion(activas, config.cuotaMensualObjetivo),
+    proyeccion,
+    costoActivas,
+    costoHistorico,
   };
 
   res.json(resumen);

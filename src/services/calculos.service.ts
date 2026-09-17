@@ -1,6 +1,6 @@
 import { DeudaDoc } from '../models/deuda.model';
 import { AbonoDoc } from '../models/abono.model';
-import { DeudaCalculada } from '../types';
+import { DeudaCalculada, Interes } from '../types';
 
 export function redondear(valor: number): number {
   return Math.round((valor + Number.EPSILON) * 100) / 100;
@@ -44,6 +44,20 @@ export function calcularInteresDelMes(
 }
 
 /**
+ * La config de interes que regia en una fecha dada. `historialInteres` solo
+ * guarda tramos YA CERRADOS (ver deuda.model.ts); si ninguno cubre la fecha
+ * (lo mas comun: la deuda nunca se edito, o la fecha es posterior al ultimo
+ * cambio), la config vigente (`deuda.interes`) es la que aplica.
+ */
+export function configDeInteresEn(
+  deuda: Pick<DeudaDoc, 'interes' | 'historialInteres'>,
+  fecha: Date
+): Interes {
+  const tramo = (deuda.historialInteres ?? []).find((t) => fecha >= t.desde && fecha < t.hasta);
+  return tramo ?? deuda.interes;
+}
+
+/**
  * Interes pendiente de una deuda con interes MENSUAL (fijo o porcentaje).
  *
  * El interes que el usuario registra en un abono es la palabra final de
@@ -55,20 +69,26 @@ export function calcularInteresDelMes(
  * de nuevo, igual que una deuda recien creada.
  *
  * Como no puede haber otro abono entre la fecha base y hoy (por definicion
- * es el ultimo), el capital pendiente no cambia en ese tramo: no hace falta
- * un calculo mes a mes con saldo variable, solo multiplicar el interes de
- * un mes por la cantidad de meses (completos + el actual) transcurridos
- * desde esa fecha.
+ * es el ultimo), el capital pendiente no cambia en ese tramo. Lo que SI
+ * puede cambiar mes a mes es la tasa/config de interes, si el usuario edito
+ * la deuda en algun punto de ese tramo: cada mes (completo + el actual) se
+ * cobra con la config que regia AL INICIO de ese mes (sin prorrateo por
+ * dias), usando el historial de tramos cerrados.
  */
 function calcularInteresPendienteMensual(
-  deuda: Pick<DeudaDoc, 'interes'>,
+  deuda: Pick<DeudaDoc, 'interes' | 'historialInteres'>,
   capitalPendiente: number,
   fechaBaseInteres: Date,
   hasta: Date
 ): number {
-  const interesPorMes = calcularInteresDelMes(deuda, capitalPendiente);
   const mesesCompletosDesdeUltimoPago = mesesTranscurridos(fechaBaseInteres, hasta);
-  return interesPorMes * (mesesCompletosDesdeUltimoPago + 1);
+  let total = 0;
+  for (let k = 0; k <= mesesCompletosDesdeUltimoPago; k++) {
+    const inicioDelMes = sumarMeses(fechaBaseInteres, k);
+    const config = configDeInteresEn(deuda, inicioDelMes);
+    total += calcularInteresDelMes({ interes: config }, capitalPendiente);
+  }
+  return total;
 }
 
 export function calcularDeuda(deuda: DeudaDoc, abonos: AbonoDoc[]): DeudaCalculada {
@@ -104,6 +124,13 @@ export function calcularDeuda(deuda: DeudaDoc, abonos: AbonoDoc[]): DeudaCalcula
     acreedor: deuda.acreedor,
     montoCapital: deuda.montoCapital,
     interes: deuda.interes,
+    historialInteres: (deuda.historialInteres ?? []).map((t) => ({
+      tipo: t.tipo,
+      modalidad: t.modalidad,
+      valor: t.valor,
+      desde: t.desde.toISOString(),
+      hasta: t.hasta.toISOString(),
+    })),
     fechaInicio: deuda.fechaInicio.toISOString(),
     prioridad: deuda.prioridad,
     estado: deuda.estado,

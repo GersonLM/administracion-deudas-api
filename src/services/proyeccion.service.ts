@@ -1,17 +1,32 @@
-import { DeudaCalculada, Proyeccion } from '../types';
+import { DeudaCalculada, Proyeccion, ProyeccionPorDeuda } from '../types';
 import { calcularInteresDelMes, redondear, sumarMeses } from './calculos.service';
 
 const LIMITE_MESES = 600;
 
 interface DeudaSimulada {
+  id: string;
   capital: number;
   interes: number;
   config: DeudaCalculada['interes'];
   prioridad: number;
+  // Interes que le falta incurrir a ESTA deuda desde hoy (arranca en su
+  // interesPendiente de hoy y solo crece con cada devengo futuro; los pagos
+  // no lo reducen - es "cuanto interes se le va a cobrar en total de aqui en
+  // adelante", no "cuanto le queda pendiente ahora mismo").
+  interesFuturo: number;
+  mesSaldada: number | null;
 }
 
 function interesMensualTotal(deudas: DeudaSimulada[]): number {
   return deudas.reduce((suma, d) => suma + calcularInteresDelMes({ interes: d.config }, d.capital), 0);
+}
+
+function saldada(d: DeudaSimulada): boolean {
+  return d.capital <= 0.01 && d.interes <= 0.01;
+}
+
+function porDeudaVacio(activas: DeudaSimulada[]): ProyeccionPorDeuda[] {
+  return activas.map((d) => ({ deudaId: d.id, mesesHastaSaldar: null, fechaEstimada: null, interesFuturo: 0 }));
 }
 
 export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetivo: number): Proyeccion {
@@ -19,10 +34,13 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
     .filter((d) => d.capitalPendiente + d.interesPendiente > 0.01)
     .sort((a, b) => a.prioridad - b.prioridad)
     .map<DeudaSimulada>((d) => ({
+      id: d.id,
       capital: d.capitalPendiente,
       interes: d.interesPendiente,
       config: d.interes,
       prioridad: d.prioridad,
+      interesFuturo: d.interesPendiente,
+      mesSaldada: null,
     }));
 
   if (activas.length === 0) {
@@ -33,6 +51,7 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
       totalAPagar: 0,
       cuotaInsuficiente: false,
       minimoMensualNecesario: 0,
+      porDeuda: [],
     };
   }
 
@@ -48,6 +67,7 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
       totalAPagar: 0,
       cuotaInsuficiente: true,
       minimoMensualNecesario: redondear(interesMensualHoy) + 1,
+      porDeuda: porDeudaVacio(activas),
     };
   }
 
@@ -56,7 +76,7 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
   let cuotaInsuficiente = false;
   let minimoMensualNecesario = 0;
 
-  const quedaPendiente = () => activas.some((d) => d.capital > 0.01 || d.interes > 0.01);
+  const quedaPendiente = () => activas.some((d) => !saldada(d));
 
   // El interes inicial de cada deuda ya incluye lo que lleva devengado el
   // mes en curso (ver calcularDeuda), asi que el primer pago del ciclo se
@@ -84,12 +104,17 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
       }
     }
 
+    for (const d of activas) {
+      if (d.mesSaldada === null && saldada(d)) d.mesSaldada = meses;
+    }
+
     if (quedaPendiente()) {
       let interesDevengadoProximoMes = 0;
       for (const d of activas) {
-        if (d.capital <= 0.01 && d.interes <= 0.01) continue;
+        if (saldada(d)) continue;
         const nuevo = calcularInteresDelMes({ interes: d.config }, d.capital);
         d.interes = redondear(d.interes + nuevo);
+        d.interesFuturo = redondear(d.interesFuturo + nuevo);
         interesDevengadoProximoMes += nuevo;
       }
       totalInteresProyectado = redondear(totalInteresProyectado + interesDevengadoProximoMes);
@@ -110,5 +135,13 @@ export function calcularProyeccion(deudas: DeudaCalculada[], cuotaMensualObjetiv
     totalAPagar: cuotaInsuficiente ? 0 : redondear(capitalPendienteInicial + totalInteresProyectado),
     cuotaInsuficiente,
     minimoMensualNecesario,
+    porDeuda: cuotaInsuficiente
+      ? porDeudaVacio(activas)
+      : activas.map((d) => ({
+          deudaId: d.id,
+          mesesHastaSaldar: d.mesSaldada,
+          fechaEstimada: d.mesSaldada !== null ? sumarMeses(new Date(), d.mesSaldada).toISOString() : null,
+          interesFuturo: redondear(d.interesFuturo),
+        })),
   };
 }
