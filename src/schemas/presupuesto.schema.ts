@@ -27,6 +27,7 @@ export const gastoSemanaSchema = z.object({
 });
 
 export const cerrarSemanaSchema = z.object({
+  cobertura: z.object({ origen: z.enum(['ahorro', 'mes', 'externo']) }).optional(),
   notaCobertura: z.string().trim().optional(),
 });
 

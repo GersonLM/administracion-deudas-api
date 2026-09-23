@@ -1,6 +1,7 @@
 import { MovimientoAhorro, MovimientoAhorroDoc } from '../models/movimiento-ahorro.model';
 import { redondear } from './calculos.service';
 import { MovimientoAhorroCalculado, ResumenAhorro } from '../types';
+import { AppError } from '../utils/AppError';
 
 export async function obtenerSaldoAhorro(): Promise<number> {
   const movimientos = await MovimientoAhorro.find().select('monto');
@@ -23,6 +24,11 @@ export async function registrarMovimientoAhorro(datos: {
     semanaId: datos.semanaId,
     cicloId: datos.cicloId,
   });
+}
+
+export async function eliminarMovimientoAhorro(id: string): Promise<void> {
+  const movimiento = await MovimientoAhorro.findByIdAndDelete(id);
+  if (!movimiento) throw new AppError(404, 'Movimiento no encontrado');
 }
 
 export async function obtenerResumenAhorro(): Promise<ResumenAhorro> {

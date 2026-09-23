@@ -54,30 +54,33 @@ export async function cerrarSemana(req: Request, res: Response) {
     });
   } else if (restante < -0.01) {
     const faltante = Math.abs(restante);
-    const saldo = await obtenerSaldoAhorro();
-    const cubierto = redondear(Math.min(faltante, Math.max(0, saldo)));
+    const origen = req.body?.cobertura?.origen as 'ahorro' | 'mes' | 'externo' | undefined;
+    if (!origen) {
+      throw new AppError(400, `Faltan ${faltante} por cubrir. Elegí de dónde: tu ahorro, el disponible del mes, o algo externo.`);
+    }
 
-    if (cubierto > 0.01) {
+    if (origen === 'ahorro') {
+      const saldo = await obtenerSaldoAhorro();
+      if (saldo < faltante) {
+        throw new AppError(400, `El ahorro no alcanza para cubrir ${faltante} (saldo actual: ${saldo}). Elegí otra opción.`);
+      }
       await registrarMovimientoAhorro({
-        monto: -cubierto,
+        monto: -faltante,
         origen: 'faltante_semana',
         descripcion: `Cobertura semana del ${semana.fechaInicio.toISOString().slice(0, 10)}`,
         semanaId: semana._id.toString(),
         cicloId: semana.cicloId.toString(),
       });
     }
+    // 'mes': no toca ahorro - sincronizarSemanas resta `cobertura.monto` del
+    // fondo de las semanas futuras (ver presupuesto.service.ts).
+    // 'externo': no toca nada, solo queda registrado para no arrastrar esta
+    // semana en el total del mes (ver obtenerCicloCalculado).
 
-    const sinCubrir = redondear(faltante - cubierto);
-    if (sinCubrir > 0.01) {
-      const nota = (req.body?.notaCobertura as string | undefined)?.trim();
-      if (!nota) {
-        throw new AppError(
-          400,
-          `Quedan ${sinCubrir} sin cubrir (el ahorro no alcanza). Agrega una nota de como lo vas a cubrir.`
-        );
-      }
-      semana.notaCobertura = nota;
-    }
+    semana.cobertura = { origen, monto: faltante };
+
+    const nota = (req.body?.notaCobertura as string | undefined)?.trim();
+    if (nota) semana.notaCobertura = nota;
   }
 
   semana.cerrada = true;

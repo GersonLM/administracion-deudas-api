@@ -102,7 +102,12 @@ export async function sincronizarSemanas(ciclo: CicloMensualDoc): Promise<Semana
   const porCongelarAhora = semanas.filter((s) => !s.congelada && s.fechaFin <= hoy);
   const abiertas = semanas.filter((s) => !s.congelada && s.fechaFin > hoy); // en curso + futuras
 
-  const montoYaCongelado = redondear(congeladasExistentes.reduce((s, sem) => s + sem.montoAsignado, 0));
+  const montoYaCongelado = redondear(
+    congeladasExistentes.reduce(
+      (s, sem) => s + sem.montoAsignado + (sem.cobertura?.origen === 'mes' ? sem.cobertura.monto : 0),
+      0
+    )
+  );
   const poolRestante = redondear(montoDisponible - montoYaCongelado);
   const pendientes = [...porCongelarAhora, ...abiertas];
   const diasRestantes = pendientes.reduce((s, sem) => s + diasEntre(sem.fechaInicio, sem.fechaFin), 0);
@@ -133,9 +138,13 @@ export async function obtenerCicloCalculado(ciclo: CicloMensualDoc): Promise<Cic
   const gastos = await GastoSemana.find({ semanaId: { $in: semanas.map((s) => s._id) } });
 
   const hoy = medianocheUTC(new Date());
+  // `semanas` viene ordenado por fechaInicio (ver sincronizarSemanas), asi
+  // que un acumulador simple da el gasto corrido del mes hasta cada semana.
+  let gastadoAcumulado = 0;
   const semanasCalculadas: SemanaCalculada[] = semanas.map((semana) => {
     const gastosDeSemana = gastos.filter((g) => g.semanaId.toString() === semana._id.toString());
     const gastado = redondear(gastosDeSemana.reduce((s, g) => s + g.monto, 0));
+    gastadoAcumulado = redondear(gastadoAcumulado + gastado);
     return {
       id: semana._id.toString(),
       cicloId: semana.cicloId.toString(),
@@ -145,7 +154,9 @@ export async function obtenerCicloCalculado(ciclo: CicloMensualDoc): Promise<Cic
       congelada: semana.congelada,
       cerrada: semana.cerrada,
       notaCobertura: semana.notaCobertura ?? undefined,
+      cobertura: semana.cobertura ?? null,
       gastado,
+      gastadoAcumulado,
       restante: redondear(semana.montoAsignado - gastado),
       diasEnSemana: diasEntre(semana.fechaInicio, semana.fechaFin),
       pendienteDeCierre: !semana.cerrada && medianocheUTC(semana.fechaFin) <= hoy,
@@ -161,8 +172,13 @@ export async function obtenerCicloCalculado(ciclo: CicloMensualDoc): Promise<Cic
 
   const totalGastosFijosMonto = redondear(totalGastosFijos(ciclo));
   const montoDisponible = redondear(ciclo.montoIngresado - totalGastosFijosMonto);
-  const totalAsignado = redondear(semanasCalculadas.reduce((s, sem) => s + sem.montoAsignado, 0));
-  const totalGastado = redondear(semanasCalculadas.reduce((s, sem) => s + sem.gastado, 0));
+  // Solo semanas ABIERTAS (en curso + futuras): una semana ya cerrada ya
+  // quedo resuelta (su superavit/deficit se reflejo en el ahorro real, en
+  // el fondo de las semanas futuras, o en nada si fue cobertura externa) y
+  // no debe seguir arrastrando el total general del mes para siempre.
+  const semanasAbiertas = semanasCalculadas.filter((sem) => !sem.cerrada);
+  const totalAsignado = redondear(semanasAbiertas.reduce((s, sem) => s + sem.montoAsignado, 0));
+  const totalGastado = redondear(semanasAbiertas.reduce((s, sem) => s + sem.gastado, 0));
 
   return {
     id: ciclo._id.toString(),

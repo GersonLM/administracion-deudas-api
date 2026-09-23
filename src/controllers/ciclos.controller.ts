@@ -88,7 +88,17 @@ export async function cerrarCiclo(req: Request, res: Response) {
     );
   }
 
-  const diferencia = redondear(calculado.montoDisponible - calculado.totalAsignado);
+  // calculado.totalAsignado solo suma semanas abiertas (ver
+  // obtenerCicloCalculado) y aca ya estan todas cerradas (puedeCerrarse lo
+  // exige) - se recalcula el pool realmente consumido sobre TODAS las
+  // semanas, sumando tambien lo cubierto "con el mes" en cada una.
+  const poolConsumido = redondear(
+    calculado.semanas.reduce(
+      (s, sem) => s + sem.montoAsignado + (sem.cobertura?.origen === 'mes' ? sem.cobertura.monto : 0),
+      0
+    )
+  );
+  const diferencia = redondear(calculado.montoDisponible - poolConsumido);
   const tipo: 'sobrante' | 'faltante' = diferencia >= 0 ? 'sobrante' : 'faltante';
   const monto = Math.abs(diferencia);
   const { destino } = req.body as { destino: 'ahorro' | 'siguiente_mes' };

@@ -90,6 +90,11 @@ export interface GastoFijoCalculado {
   fechaRegistro: string;
 }
 
+export interface CoberturaSemana {
+  origen: 'ahorro' | 'mes' | 'externo';
+  monto: number;
+}
+
 export interface SemanaCalculada {
   id: string;
   cicloId: string;
@@ -99,7 +104,9 @@ export interface SemanaCalculada {
   congelada: boolean;
   cerrada: boolean;
   notaCobertura?: string;
+  cobertura: CoberturaSemana | null;
   gastado: number;
+  gastadoAcumulado: number;
   restante: number;
   diasEnSemana: number;
   pendienteDeCierre: boolean;
